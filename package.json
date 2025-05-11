@@ -1,0 +1,55 @@
+{
+  "name": "@jasonkneen/fluent-mcp",
+  "version": "1.0.0",
+  "description": "A chainable, fluent interface for building MCP servers with minimal code",
+  "main": "dist/fluent-mcp.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "start": "node src/demo.js",
+    "dev": "node src/demo.js",
+    "demo": "node src/demo.js",
+    "demo:ts": "ts-node --esm --transpile-only src/example-server.ts",
+    "lint": "eslint src --ext .ts",
+    "test": "vitest run src/fluent-mcp.test.ts src/server.test.ts",
+    "test:watch": "vitest",
+    "test:fluent": "node src/test-fluent-mcp.js",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.11.1",
+    "socket.io": "^4.7.2",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "@types/socket.io": "^3.0.2",
+    "@typescript-eslint/eslint-plugin": "^6.12.0",
+    "@typescript-eslint/parser": "^6.12.0",
+    "eslint": "^8.54.0",
+    "ts-node": "^10.9.1",
+    "typescript": "^5.3.2",
+    "vitest": "^0.34.6"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jasonkneen/fluent-mcp.git"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "fluent",
+    "chainable",
+    "api",
+    "server"
+  ],
+  "author": "Jason Kneen",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/jasonkneen/fluent-mcp/issues"
+  },
+  "homepage": "https://github.com/jasonkneen/fluent-mcp#readme"
+}
