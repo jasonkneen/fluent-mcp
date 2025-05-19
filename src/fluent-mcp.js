@@ -1,6 +1,10 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { ListToolsRequestSchema, InitializeRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
+
+// Suppress verbose logging
+process.env.DEBUG = process.env.DEBUG || 'error';  // Only show errors by default
 
 // Re-export zod for convenience
 export { z };
@@ -20,6 +24,8 @@ export class FluentMCP {
       ...options
     });
     this.resources = {};
+    this.toolRegistry = new Map(); // Store tool info for compatibility processing
+    this.negotiatedProtocolVersion = null; // Store negotiated MCP protocol version
     this.options = {
       autoGenerateIds: true,
       timestampEntries: true,
@@ -32,11 +38,220 @@ export class FluentMCP {
   }
 
   /**
-   * Add a tool to the server
+   * Setup MCP version negotiation and compatibility
+   */
+  _setupMcpVersioning() {
+    const underlyingServer = this.server.server;
+    if (!underlyingServer || !underlyingServer.setRequestHandler) return;
+
+    // Intercept initialize request to capture protocol version
+    underlyingServer.setRequestHandler(InitializeRequestSchema, async (request) => {
+      // Store the client's requested protocol version
+      const clientVersion = request.params?.protocolVersion;
+      
+      // Determine which version to negotiate
+      // Support both 2024-11-05 (older) and 2025-03-26 (newer)
+      if (clientVersion === '2024-11-05') {
+        this.negotiatedProtocolVersion = '2024-11-05';
+      } else {
+        // Default to newest version (2025-03-26) for any other version or newer
+        this.negotiatedProtocolVersion = '2025-03-26';
+      }
+      
+      // Get the original initialize result
+      const result = {
+        protocolVersion: this.negotiatedProtocolVersion,
+        capabilities: { tools: { listChanged: true } },
+        serverInfo: { name: "FluentMCP", version: "1.0.0" }
+      };
+      
+      return result;
+    });
+  }
+
+  /**
+   * Setup tools list handler that adapts to negotiated MCP version
+   * This is called after server connection when handlers are available
+   */
+  _setupVersionedToolsList() {
+    const underlyingServer = this.server.server;
+    if (!underlyingServer || !underlyingServer.setRequestHandler) return;
+
+    underlyingServer.setRequestHandler(ListToolsRequestSchema, async (request) => {
+      // Default to modern format if no version negotiated yet
+      const protocolVersion = this.negotiatedProtocolVersion || '2025-03-26';
+      
+      const tools = [];
+      
+      // Build tools list from our registry with improved schema extraction
+      for (const [toolName, toolInfo] of this.toolRegistry) {
+        // UNIVERSAL FORMAT: Provide BOTH legacy and modern fields with full schemas
+        const tool = {
+          name: toolName,
+          // Legacy format fields (2024-11-05)
+          description: toolInfo.description,
+          inputSchema: toolInfo.inputSchema,
+          // Modern format fields (2025-03-26)
+          annotations: {
+            description: toolInfo.description,
+            ...toolInfo.inputSchema // Spread the full schema into annotations
+          }
+        };
+        
+        tools.push(tool);
+      }
+      
+      return { tools };
+    });
+  }
+
+  /**
+   * Add a tool to the server with dual-format compatibility
    */
   tool(name, schema, handler) {
+    // Extract description and schema info for compatibility
+    const toolInfo = this._extractToolInfo(name, schema);
+    
+    // Store tool info for later processing
+    this.toolRegistry.set(name, toolInfo);
+    
+    // Register with the MCP SDK (this creates the annotations format)
     this.server.tool(name, schema, handler);
+    
     return this;
+  }
+
+  /**
+   * Extract tool information from Zod schema for compatibility
+   */
+  _extractToolInfo(name, schema) {
+    let description = "";
+    let inputSchema = { type: "object" };
+    
+    if (schema && typeof schema === 'object') {
+      // If it's a Zod object schema with description
+      if (schema._def && schema._def.typeName === 'ZodObject') {
+        description = schema._def.description || "";
+        inputSchema = this._convertZodToJsonSchema(schema);
+      }
+      // If it's a plain object with Zod validators
+      else if (!schema._def && typeof schema === 'object') {
+        inputSchema = this._convertObjectToJsonSchema(schema);
+      }
+      // For other Zod types
+      else if (schema._def) {
+        inputSchema = this._convertZodToJsonSchema(schema);
+      }
+    }
+    
+    return {
+      name,
+      description,
+      inputSchema
+    };
+  }
+
+  /**
+   * Convert Zod schema to JSON Schema format
+   */
+  _convertZodToJsonSchema(zodSchema) {
+    if (!zodSchema._def) return { type: "object" };
+    
+    switch (zodSchema._def.typeName) {
+      case 'ZodObject':
+        const properties = {};
+        const required = [];
+        const shape = zodSchema._def.shape();
+        
+        for (const [key, value] of Object.entries(shape)) {
+          properties[key] = this._convertZodToJsonSchema(value);
+          if (!this._isOptional(value)) {
+            required.push(key);
+          }
+        }
+        
+        return {
+          type: "object",
+          properties,
+          ...(required.length > 0 && { required }),
+          additionalProperties: false
+        };
+        
+      case 'ZodString':
+        const stringSchema = { type: "string" };
+        if (zodSchema._def.description) stringSchema.description = zodSchema._def.description;
+        if (zodSchema._def.checks) {
+          zodSchema._def.checks.forEach(check => {
+            if (check.kind === 'min') stringSchema.minLength = check.value;
+            if (check.kind === 'max') stringSchema.maxLength = check.value;
+          });
+        }
+        return stringSchema;
+        
+      case 'ZodNumber':
+        return {
+          type: "number",
+          ...(zodSchema._def.description && { description: zodSchema._def.description })
+        };
+        
+      case 'ZodBoolean':
+        return {
+          type: "boolean",
+          ...(zodSchema._def.description && { description: zodSchema._def.description })
+        };
+        
+      case 'ZodEnum':
+        return {
+          type: "string",
+          enum: zodSchema._def.values,
+          ...(zodSchema._def.description && { description: zodSchema._def.description })
+        };
+        
+      case 'ZodDefault':
+        const baseSchema = this._convertZodToJsonSchema(zodSchema._def.innerType);
+        return {
+          ...baseSchema,
+          default: zodSchema._def.defaultValue()
+        };
+        
+      case 'ZodOptional':
+        return this._convertZodToJsonSchema(zodSchema._def.innerType);
+        
+      default:
+        return { type: "string" };
+    }
+  }
+
+  /**
+   * Convert object with Zod validators to JSON Schema
+   */
+  _convertObjectToJsonSchema(obj) {
+    const properties = {};
+    const required = [];
+    
+    for (const [key, value] of Object.entries(obj)) {
+      if (value && value._def) {
+        properties[key] = this._convertZodToJsonSchema(value);
+        if (!this._isOptional(value)) {
+          required.push(key);
+        }
+      }
+    }
+    
+    return {
+      type: "object",
+      properties,
+      ...(required.length > 0 && { required }),
+      additionalProperties: false
+    };
+  }
+
+  /**
+   * Check if a Zod schema is optional
+   */
+  _isOptional(zodSchema) {
+    return zodSchema._def.typeName === 'ZodOptional' || 
+           (zodSchema._def.typeName === 'ZodDefault');
   }
 
   /**
@@ -393,27 +608,55 @@ export class FluentMCP {
     // Use the configured transport or default to stdio
     if (this.transportType === 'stdio' || !this.transportType) {
       transport = new StdioServerTransport();
+      
+      // Override console methods to prevent output to stdout when using stdio transport
+      const originalConsoleLog = console.log;
+      const originalConsoleInfo = console.info;
+      const originalConsoleWarn = console.warn;
+      const originalConsoleError = console.error;
+      
+      // Only override if we're using stdio transport
+      if (process.env.NODE_ENV !== 'test') {
+        console.log = function(...args) {
+          originalConsoleError('[LOG]', ...args);
+        };
+        
+        console.info = function(...args) {
+          originalConsoleError('[INFO]', ...args);
+        };
+        
+        console.warn = function(...args) {
+          originalConsoleError('[WARN]', ...args);
+        };
+        
+        // Keep error logging to stderr
+        console.error = function(...args) {
+          originalConsoleError('[ERROR]', ...args);
+        };
+      }
     }
     
-    await this.server.connect(transport);
-    return this;
+    try {
+      // Setup version negotiation BEFORE connecting
+      this._setupMcpVersioning();
+      
+      await this.server.connect(transport);
+      
+      // Setup tools list handler AFTER connection when handlers are available
+      this._setupVersionedToolsList();
+      
+      return this;
+    } catch (error) {
+      // Ensure any startup errors are properly reported to stderr
+      console.error('Failed to start MCP server:', error);
+      process.exit(1);
+    }
   }
 }
 
 /**
- * Create a new FluentMCP instance with simple defaults
+ * Create a new FluentMCP instance with flexible options
  */
 export function createMCP(name, version, options = {}) {
   return new FluentMCP(name, version, options);
-}
-
-/**
- * Create a new FluentMCP instance with advanced options
- */
-export function createAdvancedMCP(name, version, options = {}) {
-  return new FluentMCP(name, version, {
-    autoGenerateIds: false,
-    timestampEntries: false,
-    ...options
-  });
 }

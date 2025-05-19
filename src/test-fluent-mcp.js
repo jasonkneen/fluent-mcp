@@ -1,4 +1,4 @@
-import { createMCP, createAdvancedMCP } from './fluent-mcp.js';
+import { createMCP } from './fluent-mcp.js';
 import { z } from 'zod';
 
 // Test the basic functionality of the fluent MCP interface
@@ -56,15 +56,17 @@ const expectedTools = ['getItem', 'getAllItems', 'createItem', 'updateItem', 'de
 const allToolsRegistered = expectedTools.every(tool => registeredTools.includes(tool));
 console.log('CRUD operations test:', allToolsRegistered ? 'PASSED' : 'FAILED');
 
-// Test advanced options
-const advancedServer = createAdvancedMCP('Advanced API', '1.0.0', {
+// Test advanced options using createMCP with explicit configuration
+const advancedServer = createMCP('Advanced API', '1.0.0', {
   autoGenerateIds: false,
+  timestampEntries: false,
   customOption: 'test'
 });
 
 // Check if options were properly set
 console.log('Advanced options test:', 
   !advancedServer.options.autoGenerateIds && 
+  !advancedServer.options.timestampEntries &&
   advancedServer.options.customOption === 'test' ? 'PASSED' : 'FAILED'
 );
 

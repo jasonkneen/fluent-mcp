@@ -75,18 +75,16 @@ export class FluentMCP {
 }
 
 /**
- * Create a new FluentMCP instance with simple defaults
+ * Create a new FluentMCP instance with flexible options
+ * 
+ * @param name - The name of the MCP server
+ * @param version - The version of the MCP server (default: "1.0.0")
+ * @param options - Configuration options including:
+ *   - autoGenerateIds: boolean (default: true) - Whether to auto-generate IDs for CRUD operations
+ *   - timestampEntries: boolean (default: true) - Whether to add timestamps to entries
+ *   - Any other custom options
  */
 export function createMCP(
-  name: string, 
-  version?: string, 
-  options?: Record<string, any>
-): FluentMCP;
-
-/**
- * Create a new FluentMCP instance with advanced options
- */
-export function createAdvancedMCP(
   name: string, 
   version?: string, 
   options?: Record<string, any>

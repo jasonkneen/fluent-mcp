@@ -1,17 +1,19 @@
 {
   "name": "@jasonkneen/fluent-mcp",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "A chainable, fluent interface for building MCP servers with minimal code",
-  "main": "dist/fluent-mcp.js",
+  "main": "src/fluent-mcp.js",
   "type": "module",
   "scripts": {
-    "build": "tsc",
-    "start": "node src/demo.js",
-    "dev": "node src/demo.js",
-    "demo": "node src/demo.js",
+    "build": "tsc && cp src/fluent-mcp.js src/fluent-mcp.d.ts src/fluent-mcp-client.js src/fluent-mcp-client.d.ts dist/",
+    "start": "node dist/example-server.js",
+    "dev": "node dist/example-server.js",
+    "demo": "node dist/example-server.js",
     "demo:ts": "ts-node --esm --transpile-only src/example-server.ts",
+    "demo:client": "ts-node --esm --transpile-only src/example-client.ts",
+    "demo:http-client": "ts-node --esm --transpile-only src/example-http-client.ts",
     "lint": "eslint src --ext .ts",
-    "test": "vitest run src/fluent-mcp.test.ts src/server.test.ts",
+    "test": "vitest run src/fluent-mcp.test.ts src/server.test.ts src/fluent-mcp-client.test.ts",
     "test:watch": "vitest",
     "test:fluent": "node src/test-fluent-mcp.js",
     "typecheck": "tsc --noEmit"
@@ -51,5 +53,6 @@
   "bugs": {
     "url": "https://github.com/jasonkneen/fluent-mcp/issues"
   },
-  "homepage": "https://github.com/jasonkneen/fluent-mcp#readme"
+  "homepage": "https://github.com/jasonkneen/fluent-mcp#readme",
+  "packageManager": "pnpm@10.8.1+sha512.c50088ba998c67b8ca8c99df8a5e02fd2ae2e2b29aaf238feaa9e124248d3f48f9fb6db2424949ff901cffbb5e0f0cc1ad6aedb602cd29450751d11c35023677"
 }

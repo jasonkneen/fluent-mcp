@@ -44,7 +44,7 @@ const server = createMCP('Notes API', '1.0.0')
                 success: true,
                 results,
                 count: results.length
-              }, null, 2)
+              })
             }
           ]
         };
@@ -58,19 +58,17 @@ const server = createMCP('Notes API', '1.0.0')
                 success: false,
                 error: 'Failed to search notes',
                 message: errorMessage
-              }, null, 2)
+              })
             }
           ]
         };
       }
     }
-  )
-  // Enable stdio transport
-  .stdio();
+);
 
 // Start the server
-server.start().then(() => {
-  console.log('Server started successfully');
-}).catch((err: unknown) => {
+server.start().catch((err: unknown) => {
+  // Log to stderr instead of stdout to avoid interfering with the MCP protocol
   console.error('Failed to start server:', err instanceof Error ? err.message : err);
+  process.exit(1);
 });
