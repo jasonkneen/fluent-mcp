@@ -198,3 +198,124 @@ describe('FluentMCP', () => {
     });
   });
 });
+
+describe('FluentMCP - MCP Resources and Prompts', () => {
+  describe('addResource method', () => {
+    it('should register an MCP resource with full options', () => {
+      // Setup
+      const mcp = createMCP('test-server');
+      const uri = 'test://resource';
+      const options = {
+        name: 'Test Resource',
+        description: 'A test resource',
+        mimeType: 'application/json'
+      };
+      const handler = vi.fn().mockResolvedValue({ data: 'test' });
+      
+      // Act
+      const result = mcp.addResource(uri, options, handler);
+      
+      // Assert
+      expect(result).toBe(mcp); // Should return instance for chaining
+      expect(mcp.mcpResources.get(uri)).toEqual({
+        name: 'Test Resource',
+        description: 'A test resource',
+        mimeType: 'application/json',
+        handler
+      });
+    });
+
+    it('should register an MCP resource with handler as second parameter', () => {
+      // Setup
+      const mcp = createMCP('test-server');
+      const uri = 'test://resource';
+      const handler = vi.fn().mockResolvedValue({ data: 'test' });
+      
+      // Act
+      mcp.addResource(uri, handler);
+      
+      // Assert
+      expect(mcp.mcpResources.get(uri)).toEqual({
+        name: 'resource',
+        description: 'Resource at test://resource',
+        mimeType: 'text/plain',
+        handler
+      });
+    });
+
+    it('should use defaults for missing options', () => {
+      // Setup
+      const mcp = createMCP('test-server');
+      const uri = 'test://some/deep/path/myfile.txt';
+      const handler = vi.fn();
+      
+      // Act
+      mcp.addResource(uri, {}, handler);
+      
+      // Assert
+      const resource = mcp.mcpResources.get(uri);
+      expect(resource.name).toBe('myfile.txt');
+      expect(resource.description).toBe('Resource at test://some/deep/path/myfile.txt');
+      expect(resource.mimeType).toBe('text/plain');
+    });
+  });
+
+  describe('addPrompt method', () => {
+    it('should register an MCP prompt with full options', () => {
+      // Setup
+      const mcp = createMCP('test-server');
+      const name = 'test-prompt';
+      const options = {
+        description: 'A test prompt',
+        arguments: [
+          { name: 'arg1', description: 'First argument', required: true },
+          { name: 'arg2', description: 'Second argument', required: false }
+        ]
+      };
+      const handler = vi.fn().mockResolvedValue('Test prompt result');
+      
+      // Act
+      const result = mcp.addPrompt(name, options, handler);
+      
+      // Assert
+      expect(result).toBe(mcp); // Should return instance for chaining
+      expect(mcp.mcpPrompts.get(name)).toEqual({
+        description: 'A test prompt',
+        arguments: options.arguments,
+        handler
+      });
+    });
+
+    it('should register an MCP prompt with handler as second parameter', () => {
+      // Setup
+      const mcp = createMCP('test-server');
+      const name = 'test-prompt';
+      const handler = vi.fn().mockResolvedValue('Test prompt result');
+      
+      // Act
+      mcp.addPrompt(name, handler);
+      
+      // Assert
+      expect(mcp.mcpPrompts.get(name)).toEqual({
+        description: 'Prompt: test-prompt',
+        arguments: [],
+        handler
+      });
+    });
+
+    it('should use defaults for missing options', () => {
+      // Setup
+      const mcp = createMCP('test-server');
+      const name = 'my-prompt';
+      const handler = vi.fn();
+      
+      // Act
+      mcp.addPrompt(name, {}, handler);
+      
+      // Assert
+      const prompt = mcp.mcpPrompts.get(name);
+      expect(prompt.description).toBe('Prompt: my-prompt');
+      expect(prompt.arguments).toEqual([]);
+    });
+  });
+});

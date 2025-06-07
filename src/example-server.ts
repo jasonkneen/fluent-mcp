@@ -25,10 +25,10 @@ const server = createMCP('Notes API', '1.0.0')
     {
       query: z.string().describe('The search query')
     },
-    async ({ query }: { query: string }) => {
+    async function(this: any, { query }: { query: string }) {
       try {
         // Get all notes from the resources using the accessor method
-        const notes = Object.values(server.getResource('Notes')) as Note[];
+        const notes = Object.values(this.getResource('Notes')) as Note[];
         
         // Filter notes based on the query
         const results = notes.filter((note) => 
@@ -64,7 +64,7 @@ const server = createMCP('Notes API', '1.0.0')
         };
       }
     }
-);
+  );
 
 // Start the server
 server.start().catch((err: unknown) => {

@@ -21,10 +21,27 @@ export { z };
  * Provides both simple and advanced usage patterns
  */
 export class FluentMCP {
+  private server: McpServer;
+  private resources: Record<string, Record<string, any>>;
+  mcpResources: Map<string, any>; // Made public for testing
+  mcpPrompts: Map<string, any>; // Made public for testing
+  private toolRegistry: Map<string, any>;
+  private negotiatedProtocolVersion: string | null;
+  private options: {
+    autoGenerateIds: boolean;
+    timestampEntries: boolean;
+    [key: string]: any;
+  };
+  private transportType?: string;
+  
+  // Zod schema validation accessible directly on the instance
+  z: typeof z;
+  schema: typeof z;
+
   /**
    * Create a new FluentMCP instance
    */
-  constructor(name, version = "1.0.0", options = {}) {
+  constructor(name: string, version = "1.0.0", options: Record<string, any> = {}) {
     this.server = new McpServer({
       name,
       version,
@@ -49,12 +66,12 @@ export class FluentMCP {
   /**
    * Setup MCP version negotiation and compatibility
    */
-  _setupMcpVersioning() {
-    const underlyingServer = this.server.server;
+  private _setupMcpVersioning() {
+    const underlyingServer = (this.server as any).server;
     if (!underlyingServer || !underlyingServer.setRequestHandler) return;
 
     // Intercept initialize request to capture protocol version
-    underlyingServer.setRequestHandler(InitializeRequestSchema, async (request) => {
+    underlyingServer.setRequestHandler(InitializeRequestSchema, async (request: any) => {
       // Store the client's requested protocol version
       const clientVersion = request.params?.protocolVersion;
       
@@ -67,20 +84,10 @@ export class FluentMCP {
         this.negotiatedProtocolVersion = '2025-03-26';
       }
       
-      // Determine capabilities based on what we actually have
-      const capabilities = { 
+      // Always include tools capability, only add others if we have them
+      const capabilities: any = { 
         tools: { listChanged: true }
       };
-      
-      // Only add resource capabilities if we have resources
-      if (this.mcpResources.size > 0) {
-        capabilities.resources = { subscribe: true, listChanged: true };
-      }
-      
-      // Only add prompt capabilities if we have prompts
-      if (this.mcpPrompts.size > 0) {
-        capabilities.prompts = { listChanged: true };
-      }
       
       // Get the original initialize result
       const result = {
@@ -97,11 +104,11 @@ export class FluentMCP {
    * Setup tools list handler that adapts to negotiated MCP version
    * This is called after server connection when handlers are available
    */
-  _setupVersionedToolsList() {
-    const underlyingServer = this.server.server;
+  private _setupVersionedToolsList() {
+    const underlyingServer = (this.server as any).server;
     if (!underlyingServer || !underlyingServer.setRequestHandler) return;
 
-    underlyingServer.setRequestHandler(ListToolsRequestSchema, async (request) => {
+    underlyingServer.setRequestHandler(ListToolsRequestSchema, async (request: any) => {
       // Default to modern format if no version negotiated yet
       const protocolVersion = this.negotiatedProtocolVersion || '2025-03-26';
       
@@ -113,12 +120,12 @@ export class FluentMCP {
         const tool = {
           name: toolName,
           // Legacy format fields (2024-11-05)
-          description: toolInfo.description,
-          inputSchema: toolInfo.inputSchema,
+          description: (toolInfo as any).description,
+          inputSchema: (toolInfo as any).inputSchema,
           // Modern format fields (2025-03-26)
           annotations: {
-            description: toolInfo.description,
-            ...toolInfo.inputSchema // Spread the full schema into annotations
+            description: (toolInfo as any).description,
+            ...(toolInfo as any).inputSchema // Spread the full schema into annotations
           }
         };
         
@@ -132,7 +139,7 @@ export class FluentMCP {
   /**
    * Add a tool to the server with dual-format compatibility
    */
-  tool(name, schema, handler) {
+  tool(name: string, schema: any, handler: Function): this {
     // Extract description and schema info for compatibility
     const toolInfo = this._extractToolInfo(name, schema);
     
@@ -140,12 +147,12 @@ export class FluentMCP {
     this.toolRegistry.set(name, toolInfo);
     
     // Create a wrapper handler that binds 'this' context
-    const boundHandler = async (args) => {
+    const boundHandler = async (args: any) => {
       return await handler.call(this, args);
     };
     
     // Register with the MCP SDK (this creates the annotations format)
-    this.server.tool(name, schema, boundHandler);
+    (this.server as any).tool(name, schema, boundHandler);
     
     return this;
   }
@@ -153,7 +160,7 @@ export class FluentMCP {
   /**
    * Extract tool information from Zod schema for compatibility
    */
-  _extractToolInfo(name, schema) {
+  private _extractToolInfo(name: string, schema: any) {
     let description = "";
     let inputSchema = { type: "object" };
     
@@ -183,18 +190,18 @@ export class FluentMCP {
   /**
    * Convert Zod schema to JSON Schema format
    */
-  _convertZodToJsonSchema(zodSchema) {
+  private _convertZodToJsonSchema(zodSchema: any): any {
     if (!zodSchema._def) return { type: "object" };
     
     switch (zodSchema._def.typeName) {
       case 'ZodObject':
-        const properties = {};
-        const required = [];
+        const properties: any = {};
+        const required: string[] = [];
         const shape = zodSchema._def.shape();
         
         for (const [key, value] of Object.entries(shape)) {
           properties[key] = this._convertZodToJsonSchema(value);
-          if (!this._isOptional(value)) {
+          if (!this._isOptional(value as any)) {
             required.push(key);
           }
         }
@@ -207,10 +214,10 @@ export class FluentMCP {
         };
         
       case 'ZodString':
-        const stringSchema = { type: "string" };
+        const stringSchema: any = { type: "string" };
         if (zodSchema._def.description) stringSchema.description = zodSchema._def.description;
         if (zodSchema._def.checks) {
-          zodSchema._def.checks.forEach(check => {
+          zodSchema._def.checks.forEach((check: any) => {
             if (check.kind === 'min') stringSchema.minLength = check.value;
             if (check.kind === 'max') stringSchema.maxLength = check.value;
           });
@@ -254,14 +261,14 @@ export class FluentMCP {
   /**
    * Convert object with Zod validators to JSON Schema
    */
-  _convertObjectToJsonSchema(obj) {
-    const properties = {};
-    const required = [];
+  private _convertObjectToJsonSchema(obj: any): any {
+    const properties: any = {};
+    const required: string[] = [];
     
     for (const [key, value] of Object.entries(obj)) {
-      if (value && value._def) {
+      if (value && (value as any)._def) {
         properties[key] = this._convertZodToJsonSchema(value);
-        if (!this._isOptional(value)) {
+        if (!this._isOptional(value as any)) {
           required.push(key);
         }
       }
@@ -278,7 +285,7 @@ export class FluentMCP {
   /**
    * Check if a Zod schema is optional
    */
-  _isOptional(zodSchema) {
+  private _isOptional(zodSchema: any): boolean {
     return zodSchema._def.typeName === 'ZodOptional' || 
            (zodSchema._def.typeName === 'ZodDefault');
   }
@@ -286,16 +293,24 @@ export class FluentMCP {
   /**
    * Register an MCP resource
    */
-  addResource(uri, options, handler) {
+  addResource(
+    uri: string, 
+    options: { 
+      name?: string; 
+      description?: string; 
+      mimeType?: string; 
+    } | Function, 
+    handler?: Function
+  ): this {
     if (typeof options === 'function') {
       handler = options;
       options = {};
     }
     
     this.mcpResources.set(uri, {
-      name: options.name || uri.split('/').pop() || 'Resource',
-      description: options.description || `Resource at ${uri}`,
-      mimeType: options.mimeType || "text/plain",
+      name: (options as any).name || uri.split('/').pop() || 'Resource',
+      description: (options as any).description || `Resource at ${uri}`,
+      mimeType: (options as any).mimeType || "text/plain",
       handler
     });
     
@@ -305,15 +320,22 @@ export class FluentMCP {
   /**
    * Register an MCP prompt
    */
-  addPrompt(name, options, handler) {
+  addPrompt(
+    name: string, 
+    options: { 
+      description?: string; 
+      arguments?: Array<{ name: string; description: string; required?: boolean }>; 
+    } | Function, 
+    handler?: Function
+  ): this {
     if (typeof options === 'function') {
       handler = options;
       options = {};
     }
     
     this.mcpPrompts.set(name, {
-      description: options.description || `Prompt: ${name}`,
-      arguments: options.arguments || [],
+      description: (options as any).description || `Prompt: ${name}`,
+      arguments: (options as any).arguments || [],
       handler
     });
     
@@ -323,7 +345,7 @@ export class FluentMCP {
   /**
    * Initialize a resource store (legacy method for compatibility)
    */
-  resource(name, initialData = {}) {
+  resource(name: string, initialData: Record<string, any> = {}): this {
     this.resources[name] = initialData;
     return this;
   }
@@ -331,14 +353,14 @@ export class FluentMCP {
   /**
    * Get a resource store
    */
-  getResource(name) {
+  getResource(name: string): Record<string, any> {
     return this.resources[name] || {};
   }
 
   /**
    * Set a resource value
    */
-  setResource(name, id, data) {
+  setResource(name: string, id: string, data: any): this {
     if (!this.resources[name]) {
       this.resources[name] = {};
     }
@@ -350,7 +372,7 @@ export class FluentMCP {
   /**
    * Delete a resource value
    */
-  deleteResource(name, id) {
+  deleteResource(name: string, id: string): this {
     if (this.resources[name] && this.resources[name][id]) {
       delete this.resources[name][id];
     }
@@ -360,7 +382,17 @@ export class FluentMCP {
   /**
    * Create CRUD operations for a resource
    */
-  crud(resourceName, schema, options = {}) {
+  crud(
+    resourceName: string, 
+    schema: Record<string, z.ZodType<any>>, 
+    options: {
+      singularName?: string;
+      pluralName?: string;
+      generateIds?: boolean;
+      timestamps?: boolean;
+      [key: string]: any;
+    } = {}
+  ): this {
     // Merge options with defaults
     const crudOptions = {
       singularName: resourceName,
@@ -381,7 +413,7 @@ export class FluentMCP {
       {
         id: z.string().describe(`The ID of the ${crudOptions.singularName.toLowerCase()} to retrieve`)
       },
-      async function({ id }) {
+      async function(this: FluentMCP, { id }: { id: string }) {
         try {
           const item = this.resources[crudOptions.pluralName][id];
           
@@ -433,7 +465,7 @@ export class FluentMCP {
     this.tool(
       `getAll${crudOptions.pluralName}`,
       {},
-      async function() {
+      async function(this: FluentMCP) {
         try {
           const items = Object.values(this.resources[crudOptions.pluralName]);
           
@@ -469,7 +501,7 @@ export class FluentMCP {
     this.tool(
       `create${crudOptions.singularName}`,
       schema,
-      async function(data) {
+      async function(this: FluentMCP, data: any) {
         try {
           // Generate ID if needed
           const id = crudOptions.generateIds 
@@ -538,7 +570,7 @@ export class FluentMCP {
         id: z.string().describe(`The ID of the ${crudOptions.singularName.toLowerCase()} to update`),
         ...schema
       },
-      async function({ id, ...data }) {
+      async function(this: FluentMCP, { id, ...data }: { id: string; [key: string]: any }) {
         try {
           const item = this.resources[crudOptions.pluralName][id];
           
@@ -604,7 +636,7 @@ export class FluentMCP {
       {
         id: z.string().describe(`The ID of the ${crudOptions.singularName.toLowerCase()} to delete`)
       },
-      async function({ id }) {
+      async function(this: FluentMCP, { id }: { id: string }) {
         try {
           const item = this.resources[crudOptions.pluralName][id];
           
@@ -660,7 +692,7 @@ export class FluentMCP {
   /**
    * Enable stdio transport
    */
-  stdio() {
+  stdio(): this {
     this.transportType = 'stdio';
     return this;
   }
@@ -668,7 +700,7 @@ export class FluentMCP {
   /**
    * Start the server with the configured transport
    */
-  async start() {
+  async start(): Promise<this> {
     let transport;
     
     // Use the configured transport or default to stdio
@@ -683,20 +715,20 @@ export class FluentMCP {
       
       // Only override if we're using stdio transport
       if (process.env.NODE_ENV !== 'test') {
-        console.log = function(...args) {
+        console.log = function(...args: any[]) {
           originalConsoleError('[LOG]', ...args);
         };
         
-        console.info = function(...args) {
+        console.info = function(...args: any[]) {
           originalConsoleError('[INFO]', ...args);
         };
         
-        console.warn = function(...args) {
+        console.warn = function(...args: any[]) {
           originalConsoleError('[WARN]', ...args);
         };
         
         // Keep error logging to stderr
-        console.error = function(...args) {
+        console.error = function(...args: any[]) {
           originalConsoleError('[ERROR]', ...args);
         };
       }
@@ -711,9 +743,6 @@ export class FluentMCP {
       // Setup tools list handler AFTER connection when handlers are available
       this._setupVersionedToolsList();
       
-      // Setup resource and prompt handlers if we have any
-      this._setupResourceAndPromptHandlers();
-      
       return this;
     } catch (error) {
       // Ensure any startup errors are properly reported to stderr
@@ -721,108 +750,15 @@ export class FluentMCP {
       process.exit(1);
     }
   }
-
-  /**
-   * Setup resource and prompt handlers separately
-   */
-  _setupResourceAndPromptHandlers() {
-    const underlyingServer = this.server.server;
-    if (!underlyingServer || !underlyingServer.setRequestHandler) return;
-
-    // Setup resource handlers if we have resources
-    if (this.mcpResources.size > 0) {
-      // Setup resources list handler
-      underlyingServer.setRequestHandler(ListResourcesRequestSchema, async (request) => {
-        const resources = [];
-          
-        for (const [uri, resourceInfo] of this.mcpResources) {
-          resources.push({
-            uri,
-            name: resourceInfo.name,
-            description: resourceInfo.description,
-            mimeType: resourceInfo.mimeType
-          });
-        }
-          
-        return { resources };
-      });
-        
-      // Setup resource read handler
-      underlyingServer.setRequestHandler(ReadResourceRequestSchema, async (request) => {
-        const uri = request.params.uri;
-        const resourceInfo = this.mcpResources.get(uri);
-          
-        if (!resourceInfo) {
-          throw new Error(`Resource not found: ${uri}`);
-        }
-          
-        try {
-          const content = await resourceInfo.handler();
-          return {
-            contents: [{
-              uri,
-              mimeType: resourceInfo.mimeType || "text/plain",
-              text: typeof content === 'string' ? content : JSON.stringify(content, null, 2)
-            }]
-          };
-        } catch (error) {
-          throw new Error(`Failed to read resource ${uri}: ${error.message}`);
-        }
-      });
-    }
-      
-    // Setup prompt handlers if we have prompts
-    if (this.mcpPrompts.size > 0) {
-      // Setup prompts list handler
-      underlyingServer.setRequestHandler(ListPromptsRequestSchema, async (request) => {
-        const prompts = [];
-          
-        for (const [name, promptInfo] of this.mcpPrompts) {
-          prompts.push({
-            name,
-            description: promptInfo.description,
-            arguments: promptInfo.arguments || []
-          });
-        }
-          
-        return { prompts };
-      });
-        
-      // Setup get prompt handler
-      underlyingServer.setRequestHandler(GetPromptRequestSchema, async (request) => {
-        const name = request.params.name;
-        const args = request.params.arguments || {};
-        const promptInfo = this.mcpPrompts.get(name);
-          
-        if (!promptInfo) {
-          throw new Error(`Prompt not found: ${name}`);
-        }
-          
-        try {
-          const result = await promptInfo.handler(args);
-          return {
-            description: promptInfo.description,
-            messages: Array.isArray(result) ? result : [
-              {
-                role: "user",
-                content: {
-                  type: "text",
-                  text: typeof result === 'string' ? result : JSON.stringify(result, null, 2)
-                }
-              }
-            ]
-          };
-        } catch (error) {
-          throw new Error(`Failed to get prompt ${name}: ${error.message}`);
-        }
-      });
-    }
-  }
 }
 
 /**
  * Create a new FluentMCP instance with flexible options
  */
-export function createMCP(name, version, options = {}) {
+export function createMCP(
+  name: string, 
+  version?: string, 
+  options: Record<string, any> = {}
+): FluentMCP {
   return new FluentMCP(name, version, options);
 }

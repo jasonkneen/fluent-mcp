@@ -7,6 +7,7 @@ import {
   ListResourcesResultSchema,
   ListPromptsResultSchema,
   GetPromptResultSchema,
+  ListRootsResultSchema,
   LoggingMessageNotificationSchema
 } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
@@ -194,6 +195,26 @@ export class FluentMCPClient {
       return result;
     } catch (error) {
       console.error(`Error getting prompt ${name}:`, error);
+      throw error;
+    }
+  }
+  
+  /**
+   * List available roots (if client supports root exposure)
+   */
+  async listRoots() {
+    if (!this.client) {
+      throw new Error("Client not connected. Call connect() first.");
+    }
+    
+    try {
+      const result = await this.client.request({
+        method: 'roots/list',
+        params: {}
+      }, ListRootsResultSchema);
+      return result.roots;
+    } catch (error) {
+      console.error("Error listing roots:", error);
       throw error;
     }
   }

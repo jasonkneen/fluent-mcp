@@ -163,6 +163,44 @@ describe('FluentMCPClient', () => {
     });
   });
   
+  describe('listRoots', () => {
+    it('should make a request to roots/list and return roots', async () => {
+      const mockRoots = [
+        { uri: 'file:///home/user', name: 'Home Directory' },
+        { uri: 'file:///workspace', name: 'Workspace' }
+      ];
+      
+      // Mock the request method specifically for this test
+      const mockRequest = vi.fn().mockResolvedValue({ roots: mockRoots });
+      (client as any).client.request = mockRequest;
+      
+      const result = await client.listRoots();
+      
+      expect(mockRequest).toHaveBeenCalledWith(
+        { method: 'roots/list', params: {} },
+        expect.any(Object) // ListRootsResultSchema
+      );
+      expect(result).toEqual(mockRoots);
+    });
+    
+    it('should throw error when client not connected', async () => {
+      const clientWithoutConnection = createMCPClient('Test', '1.0.0');
+      (clientWithoutConnection as any).client = null;
+      
+      await expect(clientWithoutConnection.listRoots()).rejects.toThrow(
+        'Client not connected. Call connect() first.'
+      );
+    });
+    
+    it('should handle and rethrow errors from the request', async () => {
+      const error = new Error('Network error');
+      const mockRequest = vi.fn().mockRejectedValue(error);
+      (client as any).client.request = mockRequest;
+      
+      await expect(client.listRoots()).rejects.toThrow('Network error');
+    });
+  });
+
   // Factory function tests
   describe('factory functions', () => {
     it('createMCPClient should return a FluentMCPClient instance', () => {

@@ -7,6 +7,8 @@ import { z } from "zod";
 export class FluentMCP {
   private server: McpServer;
   private resources: Record<string, Record<string, any>>;
+  mcpResources: Map<string, any>; // Made public for testing
+  mcpPrompts: Map<string, any>; // Made public for testing
   private options: {
     autoGenerateIds: boolean;
     timestampEntries: boolean;
@@ -29,7 +31,32 @@ export class FluentMCP {
   tool(name: string, schema: any, handler: Function): this;
 
   /**
-   * Initialize a resource store
+   * Register an MCP resource
+   */
+  addResource(
+    uri: string, 
+    options: { 
+      name?: string; 
+      description?: string; 
+      mimeType?: string; 
+    } | Function, 
+    handler?: Function
+  ): this;
+
+  /**
+   * Register an MCP prompt
+   */
+  addPrompt(
+    name: string, 
+    options: { 
+      description?: string; 
+      arguments?: Array<{ name: string; description: string; required?: boolean }>; 
+    } | Function, 
+    handler?: Function
+  ): this;
+
+  /**
+   * Initialize a resource store (legacy method for compatibility)
    */
   resource(name: string, initialData?: Record<string, any>): this;
 

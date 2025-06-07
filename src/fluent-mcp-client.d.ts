@@ -69,7 +69,12 @@ export class FluentMCPClient {
   /**
    * Get a prompt from the MCP server
    */
-  getPrompt(name: string, args?: Record<string, any>): Promise<{messages: Array<{role: string, content: {text: string}}>}>;  
+  getPrompt(name: string, args?: Record<string, any>): Promise<{messages: Array<{role: string, content: {text: string}}>}>;
+  
+  /**
+   * List available roots (if client supports root exposure)
+   */
+  listRoots(): Promise<Array<{uri: string, name?: string}>>;  
   
   /**
    * Parse the result content from a tool call
