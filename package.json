@@ -5,7 +5,7 @@
   "main": "src/fluent-mcp.js",
   "type": "module",
   "scripts": {
-    "build": "tsc && cp src/fluent-mcp.js src/fluent-mcp.d.ts src/fluent-mcp-client.js src/fluent-mcp-client.d.ts dist/",
+    "build": "tsc && cp src/fluent-mcp.d.ts src/fluent-mcp-client.d.ts dist/",
     "start": "node dist/example-server.js",
     "dev": "node dist/example-server.js",
     "demo": "node dist/example-server.js",
