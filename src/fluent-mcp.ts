@@ -701,37 +701,33 @@ export class FluentMCP {
    * Start the server with the configured transport
    */
   async start(): Promise<this> {
-    let transport;
-    
     // Use the configured transport or default to stdio
-    if (this.transportType === 'stdio' || !this.transportType) {
-      transport = new StdioServerTransport();
+    const transport = new StdioServerTransport();
+    
+    // Override console methods to prevent output to stdout when using stdio transport
+    const originalConsoleLog = console.log;
+    const originalConsoleInfo = console.info;
+    const originalConsoleWarn = console.warn;
+    const originalConsoleError = console.error;
+    
+    // Only override if we're using stdio transport
+    if (process.env.NODE_ENV !== 'test') {
+      console.log = function(...args: any[]) {
+        originalConsoleError('[LOG]', ...args);
+      };
       
-      // Override console methods to prevent output to stdout when using stdio transport
-      const originalConsoleLog = console.log;
-      const originalConsoleInfo = console.info;
-      const originalConsoleWarn = console.warn;
-      const originalConsoleError = console.error;
+      console.info = function(...args: any[]) {
+        originalConsoleError('[INFO]', ...args);
+      };
       
-      // Only override if we're using stdio transport
-      if (process.env.NODE_ENV !== 'test') {
-        console.log = function(...args: any[]) {
-          originalConsoleError('[LOG]', ...args);
-        };
-        
-        console.info = function(...args: any[]) {
-          originalConsoleError('[INFO]', ...args);
-        };
-        
-        console.warn = function(...args: any[]) {
-          originalConsoleError('[WARN]', ...args);
-        };
-        
-        // Keep error logging to stderr
-        console.error = function(...args: any[]) {
-          originalConsoleError('[ERROR]', ...args);
-        };
-      }
+      console.warn = function(...args: any[]) {
+        originalConsoleError('[WARN]', ...args);
+      };
+      
+      // Keep error logging to stderr
+      console.error = function(...args: any[]) {
+        originalConsoleError('[ERROR]', ...args);
+      };
     }
     
     try {
