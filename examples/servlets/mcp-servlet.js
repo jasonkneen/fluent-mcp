@@ -1,4 +1,4 @@
-import { createMCP } from '../dist/fluent-mcp.js';
+import { createMCP } from '../../dist/fluent-mcp.js';
 import { z } from 'zod';
 
 function parseArgs() {
@@ -42,7 +42,7 @@ createMCP('servlet server', '1.0.0')
           content: [
             {
               type: 'text',
-              text: `${hasInstruction ? dynamicInstruction : instruction}\n\nContext: ${hasContext ? defaultContext : context}\n\nPrompt: ${hasPrompt ? defaultPrompt : prompt}`
+              text: `task(${hasInstruction ? dynamicInstruction : instruction}, ${hasContext ? defaultContext : context}, ${hasPrompt ? defaultPrompt : prompt})`
             }
           ]
         };

@@ -1,0 +1,87 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&display=swap');
+
+@layer base {
+  :root {
+    --background: 210 20% 5%;
+    --foreground: 210 40% 98%;
+    
+    --card: 210 20% 8%;
+    --card-foreground: 210 40% 98%;
+    
+    --popover: 210 20% 8%;
+    --popover-foreground: 210 40% 98%;
+    
+    --primary: 210 40% 65%;
+    --primary-foreground: 210 20% 5%;
+    
+    --secondary: 210 20% 12%;
+    --secondary-foreground: 210 40% 98%;
+    
+    --muted: 210 20% 10%;
+    --muted-foreground: 210 40% 60%;
+    
+    --accent: 210 20% 15%;
+    --accent-foreground: 210 40% 98%;
+    
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    
+    --border: 210 20% 20%;
+    --input: 210 20% 12%;
+    --ring: 210 40% 65%;
+    
+    --radius: 0.5rem;
+    
+    --font-tech-turf: 'Orbitron', monospace;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground font-sans;
+    background: linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 50%, #2a2a2a 100%);
+    min-height: 100vh;
+  }
+}
+
+@layer components {
+  .brush-steel {
+    background: linear-gradient(135deg, #2a2a2a 0%, #1a1a1a 50%, #0a0a0a 100%);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 
+      0 4px 6px -1px rgba(0, 0, 0, 0.4),
+      0 2px 4px -1px rgba(0, 0, 0, 0.3),
+      inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  }
+  
+  .glow-border {
+    border: 1px solid rgba(100, 149, 237, 0.3);
+    box-shadow: 
+      0 0 10px rgba(100, 149, 237, 0.2),
+      inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  }
+  
+  .tech-glow {
+    text-shadow: 0 0 10px rgba(100, 149, 237, 0.5);
+  }
+  
+  .code-block {
+    @apply brush-steel rounded-lg p-4 font-mono text-sm;
+    background: #0f0f0f;
+    border: 1px solid #333;
+  }
+  
+  .gradient-text {
+    background: linear-gradient(135deg, #fb923c 0%, #f97316 50%, #ea580c 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+}
