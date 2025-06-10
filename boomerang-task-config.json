@@ -1,0 +1,11 @@
+{
+    "mcpServers": {
+        "boomerang-task": {
+            "command": "node",
+            "args": [
+                "./src/boomerang-mcp.js"
+            ],
+            "env": {}
+        }
+    }
+}
