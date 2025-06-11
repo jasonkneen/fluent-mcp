@@ -9,6 +9,7 @@ import {
   GetPromptRequestSchema
 } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
+import { convertZodToJsonSchema, convertObjectToJsonSchema, isOptional } from "./zod-schema.js";
 
 // Suppress verbose logging
 process.env.DEBUG = process.env.DEBUG || 'error';  // Only show errors by default
@@ -191,103 +192,14 @@ export class FluentMCP {
    * Convert Zod schema to JSON Schema format
    */
   private _convertZodToJsonSchema(zodSchema: any): any {
-    if (!zodSchema._def) return { type: "object" };
-    
-    switch (zodSchema._def.typeName) {
-      case 'ZodObject':
-        const properties: any = {};
-        const required: string[] = [];
-        const shape = zodSchema._def.shape();
-        
-        for (const [key, value] of Object.entries(shape)) {
-          properties[key] = this._convertZodToJsonSchema(value);
-          if (!this._isOptional(value as any)) {
-            required.push(key);
-          }
-        }
-        
-        return {
-          type: "object",
-          properties,
-          ...(required.length > 0 && { required }),
-          additionalProperties: false
-        };
-        
-      case 'ZodString':
-        const stringSchema: any = { type: "string" };
-        if (zodSchema._def.description) stringSchema.description = zodSchema._def.description;
-        if (zodSchema._def.checks) {
-          zodSchema._def.checks.forEach((check: any) => {
-            if (check.kind === 'min') stringSchema.minLength = check.value;
-            if (check.kind === 'max') stringSchema.maxLength = check.value;
-          });
-        }
-        return stringSchema;
-        
-      case 'ZodNumber':
-        return {
-          type: "number",
-          ...(zodSchema._def.description && { description: zodSchema._def.description })
-        };
-        
-      case 'ZodBoolean':
-        return {
-          type: "boolean",
-          ...(zodSchema._def.description && { description: zodSchema._def.description })
-        };
-        
-      case 'ZodEnum':
-        return {
-          type: "string",
-          enum: zodSchema._def.values,
-          ...(zodSchema._def.description && { description: zodSchema._def.description })
-        };
-        
-      case 'ZodDefault':
-        const baseSchema = this._convertZodToJsonSchema(zodSchema._def.innerType);
-        return {
-          ...baseSchema,
-          default: zodSchema._def.defaultValue()
-        };
-        
-      case 'ZodOptional':
-        return this._convertZodToJsonSchema(zodSchema._def.innerType);
-        
-      default:
-        return { type: "string" };
-    }
+    return convertZodToJsonSchema(zodSchema);
   }
 
   /**
    * Convert object with Zod validators to JSON Schema
    */
   private _convertObjectToJsonSchema(obj: any): any {
-    const properties: any = {};
-    const required: string[] = [];
-    
-    for (const [key, value] of Object.entries(obj)) {
-      if (value && (value as any)._def) {
-        properties[key] = this._convertZodToJsonSchema(value);
-        if (!this._isOptional(value as any)) {
-          required.push(key);
-        }
-      }
-    }
-    
-    return {
-      type: "object",
-      properties,
-      ...(required.length > 0 && { required }),
-      additionalProperties: false
-    };
-  }
-
-  /**
-   * Check if a Zod schema is optional
-   */
-  private _isOptional(zodSchema: any): boolean {
-    return zodSchema._def.typeName === 'ZodOptional' || 
-           (zodSchema._def.typeName === 'ZodDefault');
+    return convertObjectToJsonSchema(obj);
   }
 
   /**
