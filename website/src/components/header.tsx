@@ -25,7 +25,7 @@ export function Header() {
             <a href="/docs" className="text-gray-300 hover:text-white transition-colors">
               Docs
             </a>
-            <a href="https://github.com" className="text-gray-300 hover:text-white transition-colors">
+            <a href="https://github.com" className="text-gray-300 hover:text-white transition-colors" title="GitHub">
               <Github className="w-5 h-5" />
             </a>
             <a href="/docs" className="brush-steel glow-border px-4 py-2 rounded-lg text-sm font-semibold text-white hover:bg-gray-800 transition-all duration-300">
