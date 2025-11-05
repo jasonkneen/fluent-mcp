@@ -62,7 +62,10 @@ createMCP('servlet server', '1.0.0')
         };
       }
     }
-  ).stdio().start().catch((err) => {
-  console.error('Failed to start server:', err instanceof Error ? err.message : err);
-  process.exit(1);
-});
+  )
+  .stdio()
+  .start()
+  .catch((err) => {
+    console.error('Failed to start server:', err instanceof Error ? err.message : err);
+    process.exit(1);
+  });

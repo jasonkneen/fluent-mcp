@@ -1,6 +1,7 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 import {
   CallToolResultSchema,
   ListToolsResultSchema,
@@ -88,6 +89,18 @@ export class FluentMCPClient {
    */
   http(url, options = {}) {
     this.transportType = 'http';
+    this.transportOptions = {
+      url,
+      ...options
+    };
+    return this;
+  }
+
+  /**
+   * Enable SSE transport
+   */
+  sse(url, options = {}) {
+    this.transportType = 'sse';
     this.transportOptions = {
       url,
       ...options
@@ -247,7 +260,7 @@ export class FluentMCPClient {
    */
   async connect() {
     let transport;
-    
+
     // Use the configured transport
     if (this.transportType === 'stdio') {
       transport = new StdioClientTransport(this.transportOptions);
@@ -256,17 +269,22 @@ export class FluentMCPClient {
         new URL(this.transportOptions.url),
         this.transportOptions
       );
+    } else if (this.transportType === 'sse') {
+      transport = new SSEClientTransport(
+        new URL(this.transportOptions.url),
+        this.transportOptions
+      );
     } else {
-      throw new Error("No transport configured. Use stdio() or http() to configure a transport.");
+      throw new Error("No transport configured. Use stdio(), http(), or sse() to configure a transport.");
     }
-    
+
     try {
       // Connect the client using the transport (this will start it automatically)
       await this.client.connect(transport);
-      
+
       // Store the transport
       this.transport = transport;
-      
+
       return this;
     } catch (error) {
       console.error("Failed to connect to MCP server:", error);
@@ -305,7 +323,7 @@ export function createMCPClient(name, version, options = {}) {
  */
 export async function connectMCPClient(name, version, transportConfig) {
   const client = new FluentMCPClient(name, version);
-  
+
   if (transportConfig.type === 'stdio') {
     client.stdio(
       transportConfig.command,
@@ -317,10 +335,15 @@ export async function connectMCPClient(name, version, transportConfig) {
       transportConfig.url,
       transportConfig.options || {}
     );
+  } else if (transportConfig.type === 'sse') {
+    client.sse(
+      transportConfig.url,
+      transportConfig.options || {}
+    );
   } else {
     throw new Error(`Unsupported transport type: ${transportConfig.type}`);
   }
-  
+
   await client.connect();
   return client;
 }

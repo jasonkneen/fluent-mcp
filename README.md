@@ -10,6 +10,8 @@ A chainable, fluent interface for building Model Context Protocol (MCP) servers 
 - **Built-in CRUD Operations**: Automatically generate CRUD tools for your resources
 - **Resource Management**: Easily manage resources with built-in storage
 - **Client Support**: Create MCP clients with the same familiar API
+- **Multiple Transports**: Support for stdio, SSE, and HTTP transports
+- **Transport Chaining**: Run multiple transports simultaneously on the same server
 - **Flexible Configuration**: Simple by default, but customizable when needed
 - **TypeScript Support**: Full TypeScript declarations for type safety
 - **JavaScript Compatibility**: Works in both TypeScript and JavaScript environments
@@ -166,6 +168,89 @@ const server = createMCP('Task Manager API', '1.0.0', {
   .start();
 ```
 
+## Transport Options
+
+FluentMCP supports multiple transport mechanisms and can run them simultaneously.
+
+### Stdio Transport
+
+The stdio transport is the default and is used for command-line MCP servers.
+
+```javascript
+import { createMCP } from '@jasonkneen/fluent-mcp';
+
+const server = createMCP('My Server', '1.0.0')
+  .tool('hello', { name: server.z.string() }, async ({ name }) => ({
+    content: [{ type: 'text', text: `Hello, ${name}!` }]
+  }))
+  .stdio()
+  .start();
+```
+
+### SSE Transport (Server-Sent Events)
+
+SSE transport enables real-time communication over HTTP. This is ideal for web-based MCP clients.
+
+```javascript
+import express from 'express';
+import { createMCP } from '@jasonkneen/fluent-mcp';
+
+const app = express();
+app.use(express.json());
+
+// SSE endpoint
+app.get('/sse', async (req, res) => {
+  const server = createMCP('SSE Server', '1.0.0')
+    .tool('getData', {}, async () => ({
+      content: [{ type: 'text', text: 'Data from SSE transport' }]
+    }))
+    .sse('/messages', res)
+    .start();
+});
+
+app.listen(3000, () => {
+  console.log('SSE server running on http://localhost:3000/sse');
+});
+```
+
+### Multiple Transports (Chaining)
+
+You can run multiple transports simultaneously on the same MCP server instance. This allows clients to connect via different methods while sharing the same tools and resources.
+
+```javascript
+import express from 'express';
+import { createMCP } from '@jasonkneen/fluent-mcp';
+
+const app = express();
+
+// Create a single server instance
+function createServerInstance() {
+  return createMCP('Multi-Transport Server', '1.0.0')
+    .resource('Data', {})
+    .crud('Item', {
+      name: server.z.string(),
+      value: server.z.string()
+    })
+    .tool('customTool', { query: server.z.string() }, async ({ query }) => ({
+      content: [{ type: 'text', text: `Processed: ${query}` }]
+    }));
+}
+
+// SSE endpoint
+app.get('/sse', async (req, res) => {
+  await createServerInstance().sse('/messages', res).start();
+});
+
+// Stdio transport (runs in parallel)
+if (!process.stdin.isTTY) {
+  createServerInstance().stdio().start();
+}
+
+app.listen(3000);
+```
+
+Both transports will have access to the same tools and resources!
+
 ## Using the Fluent MCP Client Interface
 
 ### Simple Usage
@@ -200,6 +285,26 @@ const client = createMCPClient('Notes HTTP Client', '1.0.0')
 // List available tools
 const tools = await client.listTools();
 console.log(tools);
+
+// Disconnect when done
+await client.disconnect();
+```
+
+### SSE Client
+
+```javascript
+import { createMCPClient } from '@jasonkneen/fluent-mcp';
+
+// Create an SSE client
+const client = createMCPClient('Notes SSE Client', '1.0.0')
+  // Configure SSE connection
+  .sse('http://localhost:3000/sse')
+  // Connect to the server
+  .connect();
+
+// Call tools
+const result = await client.callTool('getData', {});
+console.log(client.parseToolResult(result));
 
 // Disconnect when done
 await client.disconnect();
@@ -244,6 +349,7 @@ npm start            # Run the JavaScript demo server
 # or
 npm run demo         # Same as above
 npm run demo:ts      # Run the TypeScript demo server
+npm run demo:sse     # Run the SSE server demo (with multiple transports)
 ```
 
 ### Client Demos
@@ -251,6 +357,7 @@ npm run demo:ts      # Run the TypeScript demo server
 ```bash
 npm run demo:client       # Run the stdio client demo
 npm run demo:http-client  # Run the HTTP client demo
+npm run demo:sse-client   # Run the SSE client demo
 ```
 
 ## Available Methods
@@ -271,7 +378,8 @@ npm run demo:http-client  # Run the HTTP client demo
 - `crud(resourceName, schema, options)`: Create CRUD operations for a resource
 - `tool(name, schema, handler)`: Add a tool to the server
 - `stdio()`: Enable stdio transport
-- `start()`: Start the server with the configured transport
+- `sse(endpoint, res)`: Enable SSE transport
+- `start()`: Start the server with the configured transport(s)
 
 ### Client Methods
 
@@ -279,6 +387,7 @@ npm run demo:http-client  # Run the HTTP client demo
 - `onNotification(schema, handler)`: Register a notification handler
 - `stdio(command, args, options)`: Configure stdio transport
 - `http(url, options)`: Configure HTTP transport
+- `sse(url, options)`: Configure SSE transport
 - `callTool(name, args, resultSchema)`: Call a tool on the MCP server
 - `listTools()`: List available tools on the server
 - `listResources()`: List available resources on the server

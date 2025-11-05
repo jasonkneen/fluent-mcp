@@ -1,6 +1,7 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 import { LoggingMessageNotificationSchema } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 
@@ -14,9 +15,9 @@ export class FluentMCPClient {
   private options: Record<string, any>;
   private transportType?: string;
   private transportOptions?: Record<string, any>;
-  private transport?: StdioClientTransport | StreamableHTTPClientTransport;
+  private transport?: StdioClientTransport | StreamableHTTPClientTransport | SSEClientTransport;
   private notificationHandlers: Record<string, Function>;
-  
+
   // Zod schema validation accessible directly on the instance
   z: typeof z;
   schema: typeof z;
@@ -45,7 +46,12 @@ export class FluentMCPClient {
    * Enable HTTP transport
    */
   http(url: string, options?: Record<string, any>): this;
-  
+
+  /**
+   * Enable SSE transport
+   */
+  sse(url: string, options?: Record<string, any>): this;
+
   /**
    * Call a tool on the MCP server
    */
@@ -113,7 +119,7 @@ export function connectMCPClient(
   name: string,
   version?: string,
   transportConfig: {
-    type: 'stdio' | 'http',
+    type: 'stdio' | 'http' | 'sse',
     command?: string,
     args?: string[],
     url?: string,

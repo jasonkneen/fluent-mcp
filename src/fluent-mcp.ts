@@ -1,7 +1,8 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { 
-  ListToolsRequestSchema, 
+import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
+import {
+  ListToolsRequestSchema,
   InitializeRequestSchema,
   ListResourcesRequestSchema,
   ReadResourceRequestSchema,
@@ -10,6 +11,7 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import { convertZodToJsonSchema, convertObjectToJsonSchema, isOptional } from "./zod-schema.js";
+import type { ServerResponse } from "node:http";
 
 // Suppress verbose logging
 process.env.DEBUG = process.env.DEBUG || 'error';  // Only show errors by default
@@ -33,8 +35,11 @@ export class FluentMCP {
     timestampEntries: boolean;
     [key: string]: any;
   };
-  private transportType?: string;
-  
+  private transportConfigs: Array<{
+    type: 'stdio' | 'sse';
+    options?: any;
+  }>;
+
   // Zod schema validation accessible directly on the instance
   z: typeof z;
   schema: typeof z;
@@ -53,12 +58,13 @@ export class FluentMCP {
     this.mcpPrompts = new Map(); // Store MCP prompts
     this.toolRegistry = new Map(); // Store tool info for compatibility processing
     this.negotiatedProtocolVersion = null; // Store negotiated MCP protocol version
+    this.transportConfigs = []; // Store multiple transport configurations
     this.options = {
       autoGenerateIds: true,
       timestampEntries: true,
       ...options
     };
-    
+
     // Add Zod schema validation directly on the instance
     this.z = z;
     this.schema = z; // Alternative name for the same functionality
@@ -605,52 +611,81 @@ export class FluentMCP {
    * Enable stdio transport
    */
   stdio(): this {
-    this.transportType = 'stdio';
+    this.transportConfigs.push({ type: 'stdio' });
     return this;
   }
 
   /**
-   * Start the server with the configured transport
+   * Enable SSE transport
+   * @param endpoint - The endpoint for POST messages (e.g., '/messages')
+   * @param res - The ServerResponse object for the SSE stream
+   */
+  sse(endpoint: string, res: ServerResponse): this {
+    this.transportConfigs.push({
+      type: 'sse',
+      options: { endpoint, res }
+    });
+    return this;
+  }
+
+  /**
+   * Start the server with the configured transport(s)
+   * Supports multiple transports running simultaneously
    */
   async start(): Promise<this> {
-    // Use the configured transport or default to stdio
-    const transport = new StdioServerTransport();
-    
+    // Default to stdio if no transports configured
+    if (this.transportConfigs.length === 0) {
+      this.transportConfigs.push({ type: 'stdio' });
+    }
+
+    // Check if we have stdio transport for console override
+    const hasStdio = this.transportConfigs.some(config => config.type === 'stdio');
+
     // Override console methods to prevent output to stdout when using stdio transport
-    const originalConsoleLog = console.log;
-    const originalConsoleInfo = console.info;
-    const originalConsoleWarn = console.warn;
-    const originalConsoleError = console.error;
-    
-    // Only override if we're using stdio transport
-    if (process.env.NODE_ENV !== 'test') {
+    if (hasStdio && process.env.NODE_ENV !== 'test') {
+      const originalConsoleError = console.error;
+
       console.log = function(...args: any[]) {
         originalConsoleError('[LOG]', ...args);
       };
-      
+
       console.info = function(...args: any[]) {
         originalConsoleError('[INFO]', ...args);
       };
-      
+
       console.warn = function(...args: any[]) {
         originalConsoleError('[WARN]', ...args);
       };
-      
+
       // Keep error logging to stderr
       console.error = function(...args: any[]) {
         originalConsoleError('[ERROR]', ...args);
       };
     }
-    
+
     try {
       // Setup version negotiation BEFORE connecting
       this._setupMcpVersioning();
-      
-      await this.server.connect(transport);
-      
+
+      // Connect all configured transports
+      for (const config of this.transportConfigs) {
+        let transport;
+
+        if (config.type === 'stdio') {
+          transport = new StdioServerTransport();
+        } else if (config.type === 'sse') {
+          const { endpoint, res } = config.options;
+          transport = new SSEServerTransport(endpoint, res);
+        }
+
+        if (transport) {
+          await this.server.connect(transport);
+        }
+      }
+
       // Setup tools list handler AFTER connection when handlers are available
       this._setupVersionedToolsList();
-      
+
       return this;
     } catch (error) {
       // Ensure any startup errors are properly reported to stderr
