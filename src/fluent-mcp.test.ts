@@ -1,14 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { z } from 'zod';
 
 // Mock the McpServer class
 vi.mock('@modelcontextprotocol/sdk/server/mcp.js', () => {
   return {
     McpServer: vi.fn().mockImplementation(() => {
-      return {
-        tool: vi.fn(),
-        connect: vi.fn().mockResolvedValue(undefined)
+      const mockServer = {
+        tool: vi.fn().mockReturnThis(),
+        connect: vi.fn().mockResolvedValue(undefined),
+        server: {
+          setRequestHandler: vi.fn()
+        }
       };
+      return mockServer;
     })
   };
 });
@@ -22,8 +26,17 @@ vi.mock('@modelcontextprotocol/sdk/server/stdio.js', () => {
   };
 });
 
+// Mock the SSEServerTransport class
+vi.mock('@modelcontextprotocol/sdk/server/sse.js', () => {
+  return {
+    SSEServerTransport: vi.fn().mockImplementation(() => {
+      return {};
+    })
+  };
+});
+
 // Import the fluent MCP interface
-import { createMCP } from './fluent-mcp.js';
+import { createMCP, FluentMCP } from './fluent-mcp.js';
 
 // Define a type for our mock server
 type MockServer = {
@@ -40,11 +53,11 @@ type MockServer = {
 
 describe('FluentMCP', () => {
   let server: MockServer;
-  
+
   beforeEach(() => {
     // Reset mocks
     vi.resetAllMocks();
-    
+
     // Create a new mock server instance
     server = {
       server: {
@@ -308,14 +321,114 @@ describe('FluentMCP - MCP Resources and Prompts', () => {
       const mcp = createMCP('test-server');
       const name = 'my-prompt';
       const handler = vi.fn();
-      
+
       // Act
       mcp.addPrompt(name, {}, handler);
-      
+
       // Assert
       const prompt = mcp.mcpPrompts.get(name);
       expect(prompt.description).toBe('Prompt: my-prompt');
       expect(prompt.arguments).toEqual([]);
     });
+  });
+});
+
+describe('FluentMCP - Constructor and Factory', () => {
+  it('should create instance with name only', () => {
+    const mcp = createMCP('my-server');
+    expect(mcp).toBeInstanceOf(FluentMCP);
+  });
+
+  it('should create instance with name and version', () => {
+    const mcp = createMCP('my-server', '2.0.0');
+    expect(mcp).toBeInstanceOf(FluentMCP);
+  });
+
+  it('should create instance with options', () => {
+    const mcp = createMCP('my-server', '1.0.0', {
+      autoGenerateIds: false,
+      timestampEntries: false,
+    });
+    expect(mcp).toBeInstanceOf(FluentMCP);
+  });
+
+  it('should expose z and schema for Zod validation', () => {
+    const mcp = createMCP('my-server');
+    expect(mcp.z).toBeDefined();
+    expect(mcp.schema).toBeDefined();
+    expect(mcp.z).toBe(mcp.schema);
+  });
+});
+
+describe('FluentMCP - Transport Configuration', () => {
+  it('should configure stdio transport', () => {
+    const mcp = createMCP('test-server');
+
+    const result = mcp.stdio();
+
+    expect(result).toBe(mcp); // Chainable
+  });
+
+  it('should support method chaining with resource and stdio', () => {
+    const mcp = createMCP('test-server');
+
+    const result = mcp
+      .resource('notes')
+      .stdio();
+
+    expect(result).toBe(mcp);
+  });
+});
+
+describe('FluentMCP - Resource Store Operations', () => {
+  it('should support full resource lifecycle with actual FluentMCP instance', () => {
+    const mcp = createMCP('test-server');
+
+    // Initialize resource
+    mcp.resource('items', {
+      item1: { id: 'item1', name: 'First' }
+    });
+
+    // Get resource
+    const items = mcp.getResource('items');
+    expect(items).toEqual({
+      item1: { id: 'item1', name: 'First' }
+    });
+
+    // Set resource
+    mcp.setResource('items', 'item2', { id: 'item2', name: 'Second' });
+    expect(mcp.getResource('items')).toHaveProperty('item2');
+
+    // Delete resource
+    mcp.deleteResource('items', 'item1');
+    expect(mcp.getResource('items')).not.toHaveProperty('item1');
+    expect(mcp.getResource('items')).toHaveProperty('item2');
+  });
+
+  it('should return empty object for non-existent resources', () => {
+    const mcp = createMCP('test-server');
+
+    const result = mcp.getResource('nonexistent');
+
+    expect(result).toEqual({});
+  });
+
+  it('should handle setResource on non-initialized resource', () => {
+    const mcp = createMCP('test-server');
+
+    mcp.setResource('newStore', 'id1', { value: 'test' });
+
+    expect(mcp.getResource('newStore')).toEqual({
+      id1: { value: 'test' }
+    });
+  });
+
+  it('should handle deleteResource on non-existent resource gracefully', () => {
+    const mcp = createMCP('test-server');
+
+    // Should not throw
+    mcp.deleteResource('nonexistent', 'id');
+
+    expect(mcp.getResource('nonexistent')).toEqual({});
   });
 });
