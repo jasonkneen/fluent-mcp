@@ -207,5 +207,190 @@ describe('FluentMCPClient', () => {
       const client = createMCPClient('TestClient', '1.0.0');
       expect(client).toBeInstanceOf(FluentMCPClient);
     });
+
+    it('createMCPClient should accept options', () => {
+      const client = createMCPClient('TestClient', '1.0.0', { customOption: true });
+      expect(client).toBeInstanceOf(FluentMCPClient);
+    });
+  });
+
+  describe('sse transport', () => {
+    it('should configure sse transport', () => {
+      const result = client.sse('http://example.com/sse', { option1: 'value1' });
+
+      expect(client.transportType).toBe('sse');
+      expect(client.transportOptions).toEqual({
+        url: 'http://example.com/sse',
+        option1: 'value1'
+      });
+      expect(result).toBe(client); // Should return this for chaining
+    });
+  });
+
+  describe('callTool', () => {
+    it('should throw error when client not connected', async () => {
+      const clientWithoutConnection = createMCPClient('Test', '1.0.0');
+      (clientWithoutConnection as any).client = null;
+
+      await expect(clientWithoutConnection.callTool('testTool', {})).rejects.toThrow(
+        'Client not connected. Call connect() first.'
+      );
+    });
+
+    it('should call tool with arguments', async () => {
+      const mockResult = { content: [{ type: 'text', text: '{"success": true}' }] };
+      const mockCallTool = vi.fn().mockResolvedValue(mockResult);
+      (client as any).client.callTool = mockCallTool;
+
+      const result = await client.callTool('myTool', { arg1: 'value1' });
+
+      expect(mockCallTool).toHaveBeenCalledWith(
+        { name: 'myTool', arguments: { arg1: 'value1' } },
+        expect.anything()
+      );
+      expect(result).toEqual(mockResult);
+    });
+  });
+
+  describe('listTools', () => {
+    it('should throw error when client not connected', async () => {
+      const clientWithoutConnection = createMCPClient('Test', '1.0.0');
+      (clientWithoutConnection as any).client = null;
+
+      await expect(clientWithoutConnection.listTools()).rejects.toThrow(
+        'Client not connected. Call connect() first.'
+      );
+    });
+
+    it('should list available tools', async () => {
+      const mockTools = [{ name: 'tool1' }, { name: 'tool2' }];
+      const mockRequest = vi.fn().mockResolvedValue({ tools: mockTools });
+      (client as any).client.request = mockRequest;
+
+      const result = await client.listTools();
+
+      expect(mockRequest).toHaveBeenCalledWith(
+        { method: 'tools/list', params: {} },
+        expect.anything()
+      );
+      expect(result).toEqual(mockTools);
+    });
+  });
+
+  describe('listResources', () => {
+    it('should throw error when client not connected', async () => {
+      const clientWithoutConnection = createMCPClient('Test', '1.0.0');
+      (clientWithoutConnection as any).client = null;
+
+      await expect(clientWithoutConnection.listResources()).rejects.toThrow(
+        'Client not connected. Call connect() first.'
+      );
+    });
+
+    it('should list available resources', async () => {
+      const mockResources = [{ uri: 'test://resource1' }, { uri: 'test://resource2' }];
+      const mockRequest = vi.fn().mockResolvedValue({ resources: mockResources });
+      (client as any).client.request = mockRequest;
+
+      const result = await client.listResources();
+
+      expect(mockRequest).toHaveBeenCalledWith(
+        { method: 'resources/list', params: {} },
+        expect.anything()
+      );
+      expect(result).toEqual(mockResources);
+    });
+  });
+
+  describe('listPrompts', () => {
+    it('should throw error when client not connected', async () => {
+      const clientWithoutConnection = createMCPClient('Test', '1.0.0');
+      (clientWithoutConnection as any).client = null;
+
+      await expect(clientWithoutConnection.listPrompts()).rejects.toThrow(
+        'Client not connected. Call connect() first.'
+      );
+    });
+
+    it('should list available prompts', async () => {
+      const mockPrompts = [{ name: 'prompt1' }, { name: 'prompt2' }];
+      const mockRequest = vi.fn().mockResolvedValue({ prompts: mockPrompts });
+      (client as any).client.request = mockRequest;
+
+      const result = await client.listPrompts();
+
+      expect(mockRequest).toHaveBeenCalledWith(
+        { method: 'prompts/list', params: {} },
+        expect.anything()
+      );
+      expect(result).toEqual(mockPrompts);
+    });
+  });
+
+  describe('getPrompt', () => {
+    it('should throw error when client not connected', async () => {
+      const clientWithoutConnection = createMCPClient('Test', '1.0.0');
+      (clientWithoutConnection as any).client = null;
+
+      await expect(clientWithoutConnection.getPrompt('test-prompt')).rejects.toThrow(
+        'Client not connected. Call connect() first.'
+      );
+    });
+
+    it('should get a prompt by name', async () => {
+      const mockPromptResult = { messages: [{ content: 'Hello' }] };
+      const mockRequest = vi.fn().mockResolvedValue(mockPromptResult);
+      (client as any).client.request = mockRequest;
+
+      const result = await client.getPrompt('my-prompt', { arg1: 'value1' });
+
+      expect(mockRequest).toHaveBeenCalledWith(
+        { method: 'prompts/get', params: { name: 'my-prompt', arguments: { arg1: 'value1' } } },
+        expect.anything()
+      );
+      expect(result).toEqual(mockPromptResult);
+    });
+  });
+
+  describe('parseToolResult edge cases', () => {
+    it('should handle content array with multiple items', () => {
+      const toolResult = {
+        content: [
+          { type: 'image', data: 'base64data' },
+          { type: 'text', text: '{"key": "value"}' }
+        ]
+      };
+
+      const parsed = client.parseToolResult(toolResult);
+      expect(parsed).toEqual({ key: 'value' });
+    });
+
+    it('should return first text content found', () => {
+      const toolResult = {
+        content: [
+          { type: 'text', text: 'first' },
+          { type: 'text', text: 'second' }
+        ]
+      };
+
+      const parsed = client.parseToolResult(toolResult);
+      expect(parsed).toBe('first');
+    });
+  });
+
+  describe('chaining', () => {
+    it('should support full chaining configuration', () => {
+      const errorHandler = vi.fn();
+      const notificationHandler = vi.fn();
+
+      const result = client
+        .onError(errorHandler)
+        .onNotification(LoggingMessageNotificationSchema, notificationHandler)
+        .stdio('node', ['server.js'], { env: {} });
+
+      expect(result).toBe(client);
+      expect(client.client.onerror).toBe(errorHandler);
+      expect(client.transportType).toBe('stdio');
+    });
   });
 });
