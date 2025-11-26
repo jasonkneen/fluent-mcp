@@ -1,0 +1,10 @@
+.env
+.node_modules
+.next
+/node_modules
+/website/node_modules
+/dist
+/.aider*
+/.opencode
+/.cluso
+/.claude
