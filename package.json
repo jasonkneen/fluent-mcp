@@ -15,25 +15,24 @@
     "demo:sse": "node examples/example-sse-server.js",
     "demo:sse-client": "node examples/example-sse-client.js",
     "lint": "eslint src --ext .ts",
-    "test": "vitest run src/fluent-mcp.test.ts src/server.test.ts src/fluent-mcp-client.test.ts",
+    "test": "vitest run",
     "test:watch": "vitest",
     "test:fluent": "node src/test-fluent-mcp.js",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.20.2",
+    "@modelcontextprotocol/sdk": "^1.23.0",
     "socket.io": "^4.8.1",
     "zod": "^3.25.76"
   },
   "devDependencies": {
-    "@types/node": "^20.10.0",
-    "@types/socket.io": "^3.0.2",
-    "@typescript-eslint/eslint-plugin": "^6.12.0",
-    "@typescript-eslint/parser": "^6.12.0",
-    "eslint": "^8.54.0",
-    "ts-node": "^10.9.1",
-    "typescript": "^5.3.2",
-    "vitest": "^0.34.6"
+    "@types/node": "^22.0.0",
+    "@typescript-eslint/eslint-plugin": "^7.18.0",
+    "@typescript-eslint/parser": "^7.18.0",
+    "eslint": "^8.57.1",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.4"
   },
   "engines": {
     "node": ">=18.0.0"
