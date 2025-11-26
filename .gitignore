@@ -1,27 +1,10 @@
-# Dependencies
-node_modules/
-
-# Build output
-dist/
-
-# IDE
-.idea/
-.vscode/
-*.swp
-*.swo
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Logs
-*.log
-npm-debug.log*
-
-# Environment
 .env
-.env.local
-.env.*.local
-
-# Coverage
-coverage/
+.node_modules
+.next
+/node_modules
+/website/node_modules
+/dist
+/.aider*
+/.opencode
+/.cluso
+/.claude
